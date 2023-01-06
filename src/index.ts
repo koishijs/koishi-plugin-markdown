@@ -1,6 +1,8 @@
 import { Context, h, Schema } from 'koishi'
 import { marked } from 'marked'
 
+const tagRegExp = /^<(\/?)([^!\s>/]+)([^>]*?)\s*(\/?)>$/
+
 function renderToken(token: marked.Token): h {
   if (token.type === 'code') {
     return h('text', { content: token.text + '\n' })
@@ -10,12 +12,32 @@ function renderToken(token: marked.Token): h {
     return h.image(token.href)
   } else if (token.type === 'blockquote') {
     return h('text', { content: token.text + '\n' })
+  } else if (token.type === 'text') {
+    return h('text', { content: token.text })
+  } else if (token.type === 'em') {
+    return h('em', render(token.tokens))
+  } else if (token.type === 'strong') {
+    return h('strong', render(token.tokens))
+  } else if (token.type === 'del') {
+    return h('del', render(token.tokens))
+  } else if (token.type === 'link') {
+    return h('a', { href: token.href }, render(token.tokens))
+  } else if (token.type === 'html') {
+    const cap = tagRegExp.exec(token.text)
+    if (!cap) {
+      return h('text', { content: token.text })
+    }
+    if (cap[2] === 'img') {
+      if (cap[1]) return
+      const src = cap[3].match(/src="([^"]+)"/)
+      if (src) return h.image(src[1])
+    }
   }
   return h('text', { content: token.raw })
 }
 
 function render(tokens: marked.Token[]): h[] {
-  return tokens.map(renderToken)
+  return tokens.map(renderToken).filter(Boolean)
 }
 
 export function transform(source: string): h[]
