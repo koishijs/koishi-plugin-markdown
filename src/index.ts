@@ -1,9 +1,67 @@
 import { Context, h, Schema } from 'koishi'
 import { marked } from 'marked'
 
+interface Superscript {
+  type: 'sup'
+  raw: string
+  text: string
+  tokens?: Token[] | undefined
+}
+
+interface Subscript {
+  type: 'sub'
+  raw: string
+  text: string
+  tokens?: Token[] | undefined
+}
+
+type Token = marked.Token | Superscript | Subscript
+
 const tagRegExp = /^<(\/?)([^!\s>/]+)([^>]*?)\s*(\/?)>$/
 
-function renderToken(token: marked.Token): h {
+const sup: marked.TokenizerExtension = {
+  name: 'sup',
+  level: 'inline',
+  start: src => src.search(/<sub>/),
+  tokenizer(src) {
+    const rule = /^<sup>([^$\n]*)<\/sup>/
+    const match = rule.exec(src)
+    if (match) {
+      const token = {
+        type: 'sup',
+        raw: match[0],
+        text: match[1].trim(),
+        tokens: []
+      }
+      this.lexer.inline(token.text, token.tokens)
+      return token
+    }
+  },
+}
+
+const sub: marked.TokenizerExtension = {
+  name: 'sub',
+  level: 'inline',
+  start: src => src.search(/<sub>/),
+  tokenizer(src) {
+    const rule = /^<sub>([^$\n]*)<\/sub>/
+    const match = rule.exec(src)
+    if (match) {
+      const token = {
+        type: 'sub',
+        raw: match[0],
+        text: match[1].trim(),
+        tokens: []
+      }
+      this.lexer.inline(token.text, token.tokens)
+      return token
+    }
+  },
+}
+
+marked.use({ extensions: [sup, sub] })
+
+function renderToken(token: Token): h {
   if (token.type === 'code') {
     return h('text', { content: token.text + '\n' })
   } else if (token.type === 'paragraph') {
@@ -22,6 +80,10 @@ function renderToken(token: marked.Token): h {
     return h('del', render(token.tokens))
   } else if (token.type === 'link') {
     return h('a', { href: token.href }, render(token.tokens))
+  } else if (token.type === 'sup') {
+    return h('sup', render(token.tokens))
+  } else if (token.type === 'sub') {
+    return h('sup', render(token.tokens))
   } else if (token.type === 'html') {
     const cap = tagRegExp.exec(token.text)
     if (!cap) {
@@ -36,7 +98,7 @@ function renderToken(token: marked.Token): h {
   return h('text', { content: token.raw })
 }
 
-function render(tokens: marked.Token[]): h[] {
+function render(tokens: Token[]): h[] {
   return tokens.map(renderToken).filter(Boolean)
 }
 
